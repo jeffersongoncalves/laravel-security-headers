@@ -35,14 +35,24 @@ composer require jeffersongoncalves/laravel-security-headers
 You can publish the config file with:
 
 ```bash
-php artisan vendor:publish --tag="laravel-security-headers-config"
+php artisan vendor:publish --tag="security-headers-config"
 ```
 
 ## Usage
 
-The package ships a single middleware: `JeffersonGoncalves\SecurityHeaders\Middleware\SecurityHeaders`. Register it however you apply security to your responses. Place it as the **outermost** middleware of the group you want protected so it also stamps cached (HIT) responses produced further down the stack.
+The package ships a single middleware: `JeffersonGoncalves\SecurityHeaders\Middleware\SecurityHeaders`. The service provider **auto-registers a `security-headers` route-middleware alias** for you, but it does **not** apply the middleware globally — you must still attach it to a route or group. Place it as the **outermost** middleware of the group you want protected so it also stamps cached (HIT) responses produced further down the stack.
 
-### Register an alias and/or apply to a group (Laravel 11+)
+### Attach it via the registered alias
+
+The alias `security-headers` is wired up automatically, so you can use it directly on a route or group:
+
+```php
+Route::middleware('security-headers')->group(function () {
+    // ...
+});
+```
+
+### Or apply it to the whole web group (Laravel 11+)
 
 In `bootstrap/app.php`:
 
@@ -51,24 +61,10 @@ use Illuminate\Foundation\Configuration\Middleware;
 use JeffersonGoncalves\SecurityHeaders\Middleware\SecurityHeaders;
 
 ->withMiddleware(function (Middleware $middleware) {
-    // Apply to the whole web group...
     $middleware->web(prepend: [
         SecurityHeaders::class,
     ]);
-
-    // ...or register an alias and attach it per route/group.
-    $middleware->alias([
-        'security-headers' => SecurityHeaders::class,
-    ]);
 })
-```
-
-Then, with the alias, on a route or group:
-
-```php
-Route::middleware('security-headers')->group(function () {
-    // ...
-});
 ```
 
 ### Legacy kernel (Laravel 10 style)
@@ -106,19 +102,76 @@ Each entry is stamped onto every response. Set any value to `null` to **skip** t
 
 ### Customizing the Content-Security-Policy
 
-The CSP header is assembled from the associative `directives` map, **preserving order**. A value may be a string or an array of source expressions. A directive whose value is `null` (or an empty string) is emitted as a *valueless* directive (e.g. `upgrade-insecure-requests`). Set `csp.enabled` to `false` to drop the header entirely:
+The CSP header is assembled from the associative `directives` map, **preserving order**. A value may be a string or an array of source expressions. A directive whose value is `null` (or an empty string) is emitted as a *valueless* directive (e.g. `upgrade-insecure-requests`). Set `csp.enabled` to `false` to drop the header entirely.
+
+The shipped default is a **strict, first-party-only** policy — no `'unsafe-*'`, no third-party origins — so it is a genuine XSS backstop:
 
 ```php
 'csp' => [
     'enabled' => true,
     'directives' => [
         'default-src' => "'self'",
-        'script-src' => ["'self'", "'unsafe-inline'", 'https://www.googletagmanager.com'],
-        'img-src' => "'self' data: https:",
-        'frame-ancestors' => "'self'",
+        'script-src' => "'self'",
+        'style-src' => "'self'",
+        'img-src' => "'self' data:",
         'object-src' => "'none'",
-        'upgrade-insecure-requests' => null, // valueless directive
+        'base-uri' => "'self'",
+        'form-action' => "'self'",
+        'frame-ancestors' => "'self'",
     ],
+],
+```
+
+#### Nonces for inline scripts
+
+Rather than reaching for `'unsafe-inline'`, allow specific inline scripts with a per-request nonce. Put the `{nonce}` placeholder in a directive — the middleware substitutes it with a fresh, random per-request value:
+
+```php
+'script-src' => "'self' 'nonce-{nonce}'",
+```
+
+Then emit the matching nonce in your Blade markup with the `@cspNonce` directive (or the `csp_nonce()` helper):
+
+```blade
+<script nonce="@cspNonce">
+    // your trusted inline script
+</script>
+```
+
+Both the header and the view receive the **same** value for that request, so the script validates while injected markup (which cannot guess the nonce) is blocked.
+
+#### Report-only mode and violation reporting
+
+Set `report-only` to emit `Content-Security-Policy-Report-Only` instead of the enforcing header (useful for rolling out a policy without breaking pages). `report-uri` / `report-to` are appended as CSP directives when non-null:
+
+```php
+'csp' => [
+    'enabled' => true,
+    'report-only' => true,
+    'report-uri' => 'https://example.com/csp-report', // legacy endpoint
+    'report-to' => 'csp-endpoint',                    // Reporting-API group name
+    // ...
+],
+```
+
+#### Opt-in: GTM / gtag / Alpine.js (permissive)
+
+If you rely on inline Google Tag Manager / gtag and Alpine.js (which evaluates expressions via `new Function`, requiring `'unsafe-eval'`) and cannot adopt nonces, you can loosen the policy. **This removes the CSP's XSS protection** — pair it with output sanitization (e.g. `symfony/html-sanitizer`) for any untrusted markup you render:
+
+```php
+'directives' => [
+    'default-src' => "'self'",
+    'script-src' => "'self' 'unsafe-inline' 'unsafe-eval' https://www.googletagmanager.com https://www.google-analytics.com https://static.cloudflareinsights.com",
+    'style-src' => "'self' 'unsafe-inline'",
+    'img-src' => "'self' data: https:",
+    'font-src' => "'self' data:",
+    'connect-src' => "'self' https://www.google-analytics.com https://*.google-analytics.com https://*.analytics.google.com https://www.googletagmanager.com https://cloudflareinsights.com",
+    'frame-src' => "'self' https://www.googletagmanager.com",
+    'frame-ancestors' => "'self'",
+    'base-uri' => "'self'",
+    'form-action' => "'self'",
+    'object-src' => "'none'",
+    'upgrade-insecure-requests' => null,
 ],
 ```
 
@@ -131,15 +184,15 @@ The CSP header is assembled from the associative `directives` map, **preserving 
     'enabled' => true,
     'max-age' => 31536000,
     'include-subdomains' => true,
-    'preload' => true,
+    'preload' => false,
 ],
 ```
 
-## Security caveat: the CSP is not an XSS backstop
+> **`preload` is a near-irreversible commitment.** Enabling it and submitting your domain to [hstspreload.org](https://hstspreload.org) hard-codes HTTPS-only for the apex domain **and every subdomain** into browsers shipped worldwide. Removal is slow (months) and painful. Leave it `false` unless you are certain every current and future subdomain serves valid TLS. It defaults to `false`.
 
-The default CSP is deliberately permissive on `script-src`/`style-src` — it keeps `'unsafe-inline'` and `'unsafe-eval'` so inline Google Tag Manager / gtag and Alpine.js (which evaluates expressions via `new Function`) keep working. The protective value is in the **structural** directives: `frame-ancestors` (clickjacking), `object-src 'none'`, `base-uri`/`form-action` lock-down, and `upgrade-insecure-requests`.
+#### HSTS depends on a correct `$request->secure()`
 
-Because `'unsafe-inline'`/`'unsafe-eval'` remain, **this CSP is NOT the XSS backstop** for any untrusted HTML you render (third-party content, imported article bodies, READMEs, etc.). Pair it with output sanitization (for example `symfony/html-sanitizer`) for any such markup — do not treat a permissive script/style CSP as a compensating control. If you do not need inline scripts, tighten `script-src`/`style-src` (drop `'unsafe-inline'`/`'unsafe-eval'`, adopt nonces/hashes).
+HSTS is only emitted when Laravel considers the request secure (`$request->secure()`). Behind a TLS-terminating proxy or load balancer (the app receives plain HTTP on the back end), `secure()` returns `false` and HSTS will be silently skipped unless you configure trusted proxies. Make sure your `TrustProxies` middleware / `bootstrap/app.php` `trustProxies(...)` config is set so the `X-Forwarded-Proto` header is honoured — otherwise the proxy must add HSTS itself.
 
 ## Testing
 

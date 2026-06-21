@@ -36,29 +36,44 @@ return [
     | A value may be a string or an array of source expressions. Set
     | `enabled` to `false` to drop the header altogether.
     |
-    | XSS NOTE: this default policy keeps 'unsafe-inline'/'unsafe-eval' on
-    | script/style so inline GTM/gtag and Alpine.js keep working. That makes
-    | the CSP NOT an XSS backstop for untrusted HTML — pair it with output
-    | sanitization (e.g. symfony/html-sanitizer) for any rendered third-party
-    | or imported markup.
+    | The shipped default is a STRICT, first-party-only policy: no `'unsafe-*'`
+    | and no third-party origins. It is a real XSS backstop. If your app needs
+    | inline scripts you have two clean options:
+    |   - Add a per-request nonce: place the `{nonce}` placeholder in a directive
+    |     (e.g. "script-src 'self' 'nonce-{nonce}'") and emit it in markup via the
+    |     `@cspNonce` Blade directive or the `csp_nonce()` helper. The middleware
+    |     substitutes `{nonce}` with the same value exposed to the view.
+    |   - Or loosen specific directives (see the opt-in GTM/Alpine snippet in the
+    |     README). Loosening with `'unsafe-inline'`/`'unsafe-eval'` removes the XSS
+    |     protection — pair it with output sanitization (e.g. symfony/html-sanitizer).
+    |
+    | Set `report-only` to true to emit `Content-Security-Policy-Report-Only`
+    | instead of the enforcing header. `report-uri`/`report-to` are appended as
+    | directives when non-null so violations can be collected.
     |
     */
 
     'csp' => [
         'enabled' => true,
+
+        // Emit Content-Security-Policy-Report-Only instead of the enforcing header.
+        'report-only' => false,
+
+        // Optional violation-reporting endpoints. Appended as CSP directives.
+        // 'report-uri' is the legacy endpoint; 'report-to' references a
+        // Reporting-API group name you configure via a Report-To/Reporting-Endpoints header.
+        'report-uri' => null,
+        'report-to' => null,
+
         'directives' => [
             'default-src' => "'self'",
-            'script-src' => "'self' 'unsafe-inline' 'unsafe-eval' https://www.googletagmanager.com https://www.google-analytics.com https://static.cloudflareinsights.com",
-            'style-src' => "'self' 'unsafe-inline'",
-            'img-src' => "'self' data: https:",
-            'font-src' => "'self' data:",
-            'connect-src' => "'self' https://www.google-analytics.com https://*.google-analytics.com https://*.analytics.google.com https://www.googletagmanager.com https://cloudflareinsights.com",
-            'frame-src' => "'self' https://www.googletagmanager.com",
-            'frame-ancestors' => "'self'",
+            'script-src' => "'self'",
+            'style-src' => "'self'",
+            'img-src' => "'self' data:",
+            'object-src' => "'none'",
             'base-uri' => "'self'",
             'form-action' => "'self'",
-            'object-src' => "'none'",
-            'upgrade-insecure-requests' => null,
+            'frame-ancestors' => "'self'",
         ],
     ],
 
@@ -71,13 +86,18 @@ return [
     | in the `local` environment (a cached max-age on a *.test domain is a
     | pain to undo). Toggle and tune the directive parameters below.
     |
+    | `preload` defaults to FALSE: turning it on is a near-irreversible
+    | commitment. Submitting your domain to hstspreload.org bakes HTTPS-only for
+    | the apex AND every subdomain into browsers, and removal can take months to
+    | propagate. Only enable it once you are certain every subdomain serves TLS.
+    |
     */
 
     'hsts' => [
         'enabled' => true,
         'max-age' => 31536000,
         'include-subdomains' => true,
-        'preload' => true,
+        'preload' => false,
     ],
 
 ];
