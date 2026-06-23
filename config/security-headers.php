@@ -98,6 +98,11 @@ return [
         'max-age' => 31536000,
         'include-subdomains' => true,
         'preload' => false,
+
+        // Environments in which HSTS is never stamped (even over HTTPS). Defaults
+        // to ['local'] so a cached max-age on a *.test domain never bites during
+        // development. Set to [] to stamp HSTS in every environment.
+        'exclude_environments' => ['local'],
     ],
 
 ];

@@ -177,7 +177,7 @@ If you rely on inline Google Tag Manager / gtag and Alpine.js (which evaluates e
 
 ### HSTS
 
-`Strict-Transport-Security` is only stamped over real HTTPS and never while the app is in the `local` environment (a cached `max-age` on a `*.test` domain is a pain to undo):
+`Strict-Transport-Security` is only stamped over real HTTPS and never while the app is in an excluded environment (`['local']` by default — a cached `max-age` on a `*.test` domain is a pain to undo):
 
 ```php
 'hsts' => [
@@ -185,6 +185,10 @@ If you rely on inline Google Tag Manager / gtag and Alpine.js (which evaluates e
     'max-age' => 31536000,
     'include-subdomains' => true,
     'preload' => false,
+
+    // Environments in which HSTS is never stamped (even over HTTPS).
+    // Set to [] to stamp HSTS in every environment.
+    'exclude_environments' => ['local'],
 ],
 ```
 

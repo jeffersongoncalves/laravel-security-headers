@@ -83,13 +83,13 @@ class SecurityHeaders
         $reportUri = config('security-headers.csp.report-uri');
 
         if (is_string($reportUri) && $reportUri !== '') {
-            $directives[] = 'report-uri '.$reportUri;
+            $directives[] = 'report-uri '.$this->sanitizeHeaderValue($reportUri);
         }
 
         $reportTo = config('security-headers.csp.report-to');
 
         if (is_string($reportTo) && $reportTo !== '') {
-            $directives[] = 'report-to '.$reportTo;
+            $directives[] = 'report-to '.$this->sanitizeHeaderValue($reportTo);
         }
 
         if ($directives === []) {
@@ -97,6 +97,15 @@ class SecurityHeaders
         }
 
         return implode('; ', $directives);
+    }
+
+    /**
+     * Strip CR/LF so a misconfigured (or user-influenced) report endpoint cannot
+     * smuggle extra headers into the response (HTTP response splitting).
+     */
+    private function sanitizeHeaderValue(string $value): string
+    {
+        return str_replace(["\r", "\n"], '', $value);
     }
 
     private function substituteNonce(string $value): string
@@ -114,9 +123,12 @@ class SecurityHeaders
             return null;
         }
 
-        // HSTS only over real HTTPS and never in local dev (a cached max-age on
-        // a *.test domain is a pain to undo).
-        if (! $request->secure() || app()->environment('local')) {
+        // HSTS only over real HTTPS, and never in the excluded environments
+        // (a cached max-age on a *.test domain is a pain to undo). The excluded
+        // list defaults to ['local'] and is configurable.
+        $excluded = (array) config('security-headers.hsts.exclude_environments', ['local']);
+
+        if (! $request->secure() || ($excluded !== [] && app()->environment($excluded))) {
             return null;
         }
 
@@ -126,7 +138,7 @@ class SecurityHeaders
             $value .= '; includeSubDomains';
         }
 
-        if (config('security-headers.hsts.preload', true)) {
+        if (config('security-headers.hsts.preload', false)) {
             $value .= '; preload';
         }
 

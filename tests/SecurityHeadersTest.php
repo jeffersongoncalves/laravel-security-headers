@@ -2,6 +2,7 @@
 
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
+use Illuminate\Support\Facades\Blade;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\ServiceProvider;
 use JeffersonGoncalves\SecurityHeaders\Middleware\SecurityHeaders;
@@ -139,6 +140,62 @@ it('honours a custom max-age', function () {
 
     expect($response->headers->get('Strict-Transport-Security'))
         ->toBe('max-age=600; includeSubDomains');
+});
+
+it('omits HSTS entirely when hsts.enabled is false', function () {
+    config()->set('security-headers.hsts.enabled', false);
+
+    $response = runSecurityHeaders(Request::create('https://example.com'));
+
+    expect($response->headers->has('Strict-Transport-Security'))->toBeFalse();
+});
+
+it('honours a custom hsts.exclude_environments list', function () {
+    config()->set('security-headers.hsts.exclude_environments', ['production']);
+    app()->detectEnvironment(fn () => 'production');
+
+    $response = runSecurityHeaders(Request::create('https://example.com'));
+
+    expect($response->headers->has('Strict-Transport-Security'))->toBeFalse();
+});
+
+it('stamps HSTS even in local when exclude_environments is empty', function () {
+    config()->set('security-headers.hsts.exclude_environments', []);
+    app()->detectEnvironment(fn () => 'local');
+
+    $response = runSecurityHeaders(Request::create('https://example.com'));
+
+    expect($response->headers->get('Strict-Transport-Security'))
+        ->toContain('max-age=31536000');
+});
+
+it('csp_nonce() returns the same non-empty value throughout a request', function () {
+    $first = csp_nonce();
+
+    expect($first)->not->toBe('')
+        ->and(csp_nonce())->toBe($first);
+});
+
+it('the @cspNonce blade directive renders the per-request nonce', function () {
+    $rendered = Blade::render('@cspNonce');
+
+    expect($rendered)->not->toBe('')
+        ->and($rendered)->toBe(e(csp_nonce()));
+});
+
+it('strips CR/LF from report-uri and report-to (header-injection guard)', function () {
+    config()->set('security-headers.csp.report-uri', "https://example.com/r\r\nX-Injected: 1");
+    config()->set('security-headers.csp.report-to', "grp\nX-Evil: 1");
+
+    $response = runSecurityHeaders(Request::create('https://example.com'));
+
+    $csp = (string) $response->headers->get('Content-Security-Policy');
+
+    expect($csp)->not->toContain("\r")
+        ->and($csp)->not->toContain("\n")
+        ->and($csp)->toContain('report-uri https://example.com/rX-Injected: 1')
+        ->and($response->headers->has('X-Injected'))->toBeFalse()
+        ->and($response->headers->has('X-Evil'))->toBeFalse();
 });
 
 it('omits a header set to null in config', function () {
