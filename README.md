@@ -1,6 +1,6 @@
 <div class="filament-hidden">
 
-![Laravel Security Headers](https://raw.githubusercontent.com/jeffersongoncalves/laravel-security-headers/master/art/jeffersongoncalves-laravel-security-headers.png)
+![Laravel Security Headers](https://raw.githubusercontent.com/jeffersongoncalves/laravel-security-headers/main/art/jeffersongoncalves-laravel-security-headers.png)
 
 </div>
 
@@ -9,8 +9,8 @@
 [![Buy Me A Coffee](https://img.shields.io/badge/Buy%20Me%20A%20Coffee-support-FFDD00?style=flat-square&logo=buy-me-a-coffee&logoColor=black)](https://buymeacoffee.com/jeffersongoncalves)
 
 [![Latest Version on Packagist](https://img.shields.io/packagist/v/jeffersongoncalves/laravel-security-headers.svg?style=flat-square)](https://packagist.org/packages/jeffersongoncalves/laravel-security-headers)
-[![GitHub Tests Action Status](https://img.shields.io/github/actions/workflow/status/jeffersongoncalves/laravel-security-headers/tests.yml?branch=master&label=tests&style=flat-square)](https://github.com/jeffersongoncalves/laravel-security-headers/actions?query=workflow%3Arun-tests+branch%3Amaster)
-[![GitHub Code Style Action Status](https://img.shields.io/github/actions/workflow/status/jeffersongoncalves/laravel-security-headers/fix-php-code-style-issues.yml?branch=master&label=code%20style&style=flat-square)](https://github.com/jeffersongoncalves/laravel-security-headers/actions?query=workflow%3A"Fix+PHP+code+styling"+branch%3Amaster)
+[![GitHub Tests Action Status](https://img.shields.io/github/actions/workflow/status/jeffersongoncalves/laravel-security-headers/tests.yml?branch=main&label=tests&style=flat-square)](https://github.com/jeffersongoncalves/laravel-security-headers/actions?query=workflow%3Arun-tests+branch%3Amain)
+[![GitHub Code Style Action Status](https://img.shields.io/github/actions/workflow/status/jeffersongoncalves/laravel-security-headers/fix-php-code-style-issues.yml?branch=main&label=code%20style&style=flat-square)](https://github.com/jeffersongoncalves/laravel-security-headers/actions?query=workflow%3A"Fix+PHP+code+styling"+branch%3Amain)
 [![Total Downloads](https://img.shields.io/packagist/dt/jeffersongoncalves/laravel-security-headers.svg?style=flat-square)](https://packagist.org/packages/jeffersongoncalves/laravel-security-headers)
 
 This Laravel package stamps a configurable set of baseline security headers onto your HTTP responses via a single middleware. Every header value and the full Content-Security-Policy directive map are driven by `config/security-headers.php`, so you can tune or disable each one without touching code.
