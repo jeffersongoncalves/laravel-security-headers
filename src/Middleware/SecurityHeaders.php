@@ -6,6 +6,7 @@ namespace JeffersonGoncalves\SecurityHeaders\Middleware;
 
 use Closure;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Vite;
 use Symfony\Component\HttpFoundation\Response;
 
 /**
@@ -27,6 +28,11 @@ class SecurityHeaders
 {
     public function handle(Request $request, Closure $next): Response
     {
+        // Fresh nonce for this request, set on Vite so every tag Vite/Livewire renders
+        // (and csp_nonce()) carries it. Also drops a nonce left over from a previous
+        // request on long-running workers (Octane).
+        Vite::useCspNonce();
+
         $response = $next($request);
 
         foreach ((array) config('security-headers.headers', []) as $name => $value) {
@@ -114,6 +120,8 @@ class SecurityHeaders
             return $value;
         }
 
+        // Read after the response was built: a page cache may have restored the
+        // nonce of the cached markup, and the header has to match that markup.
         return str_replace('{nonce}', csp_nonce(), $value);
     }
 

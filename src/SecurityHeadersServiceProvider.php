@@ -21,10 +21,10 @@ class SecurityHeadersServiceProvider extends PackageServiceProvider
 
     public function packageRegistered(): void
     {
-        // One nonce per request, shared between the middleware (which substitutes
-        // the {nonce} placeholder in CSP directives) and the @cspNonce / csp_nonce()
-        // helpers used in views.
-        $this->app->scoped('security-headers.nonce', fn (): string => base64_encode(random_bytes(16)));
+        // Kept for code that resolved the nonce from the container: it is the same
+        // value as csp_nonce() / Vite::cspNonce() (resolved on every call, so it
+        // follows a nonce restored later in the request, e.g. by a page cache).
+        $this->app->bind('security-headers.nonce', fn (): string => csp_nonce());
     }
 
     public function packageBooted(): void

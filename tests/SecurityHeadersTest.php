@@ -4,6 +4,7 @@ use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\Support\Facades\Blade;
 use Illuminate\Support\Facades\Route;
+use Illuminate\Support\Facades\Vite;
 use Illuminate\Support\ServiceProvider;
 use JeffersonGoncalves\SecurityHeaders\Middleware\SecurityHeaders;
 use JeffersonGoncalves\SecurityHeaders\SecurityHeadersServiceProvider;
@@ -70,6 +71,46 @@ it('substitutes the {nonce} placeholder with the per-request nonce', function ()
         ->and($response->headers->get('Content-Security-Policy'))
         ->toContain("script-src 'self' 'nonce-".$nonce."'")
         ->not->toContain('{nonce}');
+});
+
+it('shares the nonce with Vite, so Vite and Livewire tags carry it', function () {
+    config()->set('security-headers.csp.directives.script-src', "'self' 'nonce-{nonce}'");
+    $seen = null;
+
+    $response = (new SecurityHeaders)->handle(Request::create('https://example.com'), function () use (&$seen) {
+        $seen = Vite::cspNonce();
+
+        return new Response('OK');
+    });
+
+    expect($seen)->not->toBeNull()
+        ->and(csp_nonce())->toBe($seen)
+        ->and($response->headers->get('Content-Security-Policy'))->toContain("'nonce-".$seen."'");
+});
+
+it('follows a nonce restored while the response is built (page cache hit)', function () {
+    config()->set('security-headers.csp.directives.script-src', "'self' 'nonce-{nonce}'");
+
+    $response = (new SecurityHeaders)->handle(Request::create('https://example.com'), function () {
+        Vite::useCspNonce('nonce-of-the-cached-markup');
+
+        return new Response('OK');
+    });
+
+    expect($response->headers->get('Content-Security-Policy'))->toContain("'nonce-nonce-of-the-cached-markup'");
+});
+
+it('starts every request with a fresh nonce (no reuse on long-running workers)', function () {
+    Vite::useCspNonce('left-over-from-the-previous-request');
+    $seen = null;
+
+    (new SecurityHeaders)->handle(Request::create('https://example.com'), function () use (&$seen) {
+        $seen = Vite::cspNonce();
+
+        return new Response('OK');
+    });
+
+    expect($seen)->not->toBe('left-over-from-the-previous-request');
 });
 
 it('emits the report-only header instead of the enforcing one when enabled', function () {

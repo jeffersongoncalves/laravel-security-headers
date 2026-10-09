@@ -142,6 +142,8 @@ Then emit the matching nonce in your Blade markup with the `@cspNonce` directive
 
 Both the header and the view receive the **same** value for that request, so the script validates while injected markup (which cannot guess the nonce) is blocked.
 
+The nonce **is Laravel's Vite nonce** (`Vite::cspNonce()`): the middleware sets a fresh one at the start of every request, so the tags `@vite`, Vite's prefetching and Livewire render get it automatically — no `@cspNonce` needed there. The header reads it after the response is built, so a full-page cache that restores the nonce of its cached markup (as [laravel-page-cache](https://github.com/jeffersongoncalves/laravel-page-cache) does) keeps the header and the HTML in sync.
+
 #### Report-only mode and violation reporting
 
 Set `report-only` to emit `Content-Security-Policy-Report-Only` instead of the enforcing header (useful for rolling out a policy without breaking pages). `report-uri` / `report-to` are appended as CSP directives when non-null:
