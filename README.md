@@ -144,7 +144,7 @@ Both the header and the view receive the **same** value for that request, so the
 
 The nonce **is Laravel's Vite nonce** (`Vite::cspNonce()`): the middleware sets a fresh one at the start of every request, so the tags `@vite`, Vite's prefetching and Livewire render get it automatically — no `@cspNonce` needed there. The header reads it after the response is built, so a full-page cache that restores the nonce of its cached markup (as [laravel-page-cache](https://github.com/jeffersongoncalves/laravel-page-cache) does) keeps the header and the HTML in sync.
 
-Third-party snippets that read the same nonce: [laravel-gtm](https://github.com/jeffersongoncalves/laravel-gtm) 3.1+ (also forwards it to `gtm.js`) and [laravel-gtag](https://github.com/jeffersongoncalves/laravel-gtag) 3.1+. Snippets that don't carry it need `'unsafe-inline'` or a `'sha256-…'` hash.
+Third-party snippets that read the same nonce: [laravel-gtm](https://github.com/jeffersongoncalves/laravel-gtm) 3.1+ (also forwards it to `gtm.js`), [laravel-gtag](https://github.com/jeffersongoncalves/laravel-gtag) 3.1+, and the other jeffersongoncalves injectors since their 2026-10-09 minor (amplitude, clarity, cloudflare-web-analytics, cookie-consent, crisp, fathom, goatcounter, hotjar, matomo, mixpanel, pirsch, pixel, plausible, simple-analytics, tawk-to, umami, whatsapp-widget). Scripts they load afterwards from a vendor CDN still need that host in `script-src`. Snippets that don't carry the nonce need `'unsafe-inline'` or a `'sha256-…'` hash.
 
 #### Alpine.js / Livewire without `'unsafe-eval'`
 
