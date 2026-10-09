@@ -144,6 +144,23 @@ Both the header and the view receive the **same** value for that request, so the
 
 The nonce **is Laravel's Vite nonce** (`Vite::cspNonce()`): the middleware sets a fresh one at the start of every request, so the tags `@vite`, Vite's prefetching and Livewire render get it automatically — no `@cspNonce` needed there. The header reads it after the response is built, so a full-page cache that restores the nonce of its cached markup (as [laravel-page-cache](https://github.com/jeffersongoncalves/laravel-page-cache) does) keeps the header and the HTML in sync.
 
+Third-party snippets that read the same nonce: [laravel-gtm](https://github.com/jeffersongoncalves/laravel-gtm) 3.1+ (also forwards it to `gtm.js`) and [laravel-gtag](https://github.com/jeffersongoncalves/laravel-gtag) 3.1+. Snippets that don't carry it need `'unsafe-inline'` or a `'sha256-…'` hash.
+
+#### Alpine.js / Livewire without `'unsafe-eval'`
+
+Standard Alpine evaluates expressions with `new Function`, which needs `'unsafe-eval'`. Livewire ships a CSP build of Alpine that parses expressions instead:
+
+- Livewire's own script: set `'csp_safe' => true` in `config/livewire.php`.
+- Bundling Livewire yourself (`inject_assets => false`): import `vendor/livewire/livewire/dist/livewire.csp.esm` instead of `livewire.esm`.
+
+The CSP build understands property access, calls, assignments, comparisons, ternaries and object/array literals — but no arrow functions, optional chaining (`?.`), multiple statements or globals such as `document`/`window`. Move that logic into `Alpine.data()` components and keep inline expressions to `toggle()`, `open = !open`, `tab === 'a'`. Keep the build only on pages whose markup you control: Filament panels use full Alpine expressions, so leave `'unsafe-eval'` (or no CSP) on panel routes.
+
+A strict policy for an Alpine/Livewire site then reads:
+
+```php
+'script-src' => "'self' 'nonce-{nonce}' https://www.googletagmanager.com",
+```
+
 #### Report-only mode and violation reporting
 
 Set `report-only` to emit `Content-Security-Policy-Report-Only` instead of the enforcing header (useful for rolling out a policy without breaking pages). `report-uri` / `report-to` are appended as CSP directives when non-null:
@@ -160,7 +177,7 @@ Set `report-only` to emit `Content-Security-Policy-Report-Only` instead of the e
 
 #### Opt-in: GTM / gtag / Alpine.js (permissive)
 
-If you rely on inline Google Tag Manager / gtag and Alpine.js (which evaluates expressions via `new Function`, requiring `'unsafe-eval'`) and cannot adopt nonces, you can loosen the policy. **This removes the CSP's XSS protection** — pair it with output sanitization (e.g. `symfony/html-sanitizer`) for any untrusted markup you render:
+If you rely on inline Google Tag Manager / gtag and Alpine.js (which evaluates expressions via `new Function`, requiring `'unsafe-eval'`) and cannot adopt nonces and the Alpine CSP build (above), you can loosen the policy. **This removes the CSP's XSS protection** — pair it with output sanitization (e.g. `symfony/html-sanitizer`) for any untrusted markup you render:
 
 ```php
 'directives' => [
